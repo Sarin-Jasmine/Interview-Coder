@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interview Coder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{color-scheme:light;
+ --bg:#f4ede1;          /* light beige */
+ --panel:#fbf8f1;
+ --ink:#2d2a35;--mute:#675f6d;--line:#e2d8c8;
+ --pink:#ddaab9;--pink-d:#cf93a7;   /* onion pink */
+ --sage:#c3d4bd;--sage-l:#e6eedf;--sage-d:#4a684e;  /* soft sage green */
+ --pomelo:#f3e6b2;                  /* soft pomelo */
+ --cobalt:#5b7fd6;--cobalt-l:#b9c9f3;   /* soft cobalt blue, used for shadows and focus */
+ --err:#9c3652}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Georgia,"Times New Roman",serif}
+main{max-width:980px;margin:0 auto;padding:30px 18px 70px}
+h1{font-size:27px;margin:0 0 4px;letter-spacing:.2px}
+p.sub{color:var(--mute);margin:0 0 24px;max-width:70ch}
+section{position:relative;isolation:isolate;padding:17px 20px;margin-bottom:22px}
+section::before{content:"";position:absolute;inset:16px 12px -13px 12px;z-index:-1;border-radius:14px;
+ background:linear-gradient(135deg,var(--cobalt) 0%,var(--cobalt-l) 100%);filter:blur(16px);opacity:.5}
+section::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+h2{font-size:17px;margin:0 0 10px}
+label{display:block;font:600 13px system-ui,sans-serif;margin:12px 0 4px}
+label small{font-weight:400;color:var(--mute)}
+input,select,button{font:14px system-ui,sans-serif}
+input[type=text],input[type=password],input[type=number],select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+input[type=file]{width:100%;font:13px system-ui,sans-serif;color:var(--mute)}
+input[type=file]::file-selector-button{margin-right:10px;padding:6px 12px;border:1px solid var(--sage-d);border-radius:6px;background:var(--sage);color:var(--ink);cursor:pointer}
+input[type=checkbox]{accent-color:var(--sage-d)}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media (max-width:640px){.row{grid-template-columns:1fr}}
+button{padding:9px 18px;border:1px solid var(--pink-d);background:var(--pink);color:var(--ink);border-radius:6px;cursor:pointer;font-weight:600}
+button:hover:not(:disabled){background:var(--pink-d)}
+button.alt{background:var(--sage);border-color:var(--sage-d);font-weight:500}
+button.alt:hover:not(:disabled){background:#b3c8ac}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--cobalt);outline-offset:2px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#status{font:13px system-ui,sans-serif;color:var(--mute);min-height:20px}
+#status.err{color:var(--err)}#status.ok{color:var(--sage-d);font-weight:600}
+progress{width:100%;height:8px;appearance:none;-webkit-appearance:none;border:0;border-radius:4px;background:var(--sage-l);margin-top:10px}
+progress::-webkit-progress-bar{background:var(--sage-l);border-radius:4px}
+progress::-webkit-progress-value{background:var(--pink);border-radius:4px}
+progress::-moz-progress-bar{background:var(--pink);border-radius:4px}
+.scroll{overflow:auto;max-height:520px;border-radius:6px}
+table{border-collapse:collapse;width:100%;font:13px system-ui,sans-serif}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:var(--sage-l)}
+td.flag{color:var(--err);font-weight:600}
+td.fixed{color:var(--sage-d)}
+tr.x td{color:var(--mute)}
+pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,Menlo,monospace;background:var(--bg);padding:10px;border-radius:6px;max-height:320px;overflow:auto}
+details{margin-top:8px}
+summary{cursor:pointer}
+.warn{font:13px system-ui,sans-serif;color:var(--ink);background:var(--pomelo);border-left:4px solid var(--err);border-radius:6px;padding:9px 12px;margin:12px 0 0}
+.note{font:12.5px system-ui,sans-serif;color:var(--mute)}
+#cost:not(:empty){background:var(--pomelo);color:var(--ink);padding:6px 10px;border-radius:6px}
+</style>
+</head>
+<body>
+<main>
+<h1>Interview Coder</h1>
+<p class="sub">Codes an interview transcript against your codebook, using your coded exemplars as the model. Runs in your browser; files go only to the Anthropic API.</p>
+
+<section>
+<h2>1. Files</h2>
+<label for="fT">Transcript to code <small>(.docx, .odt, .xlsx, .numbers or .csv; spreadsheets use the first sheet, one row per utterance)</small></label>
+<input type="file" id="fT" accept=".docx,.odt,.pages,.xlsx,.numbers,.csv">
+<label for="fC">Codebook <small>(.xlsx, .numbers or .csv; hierarchy shown by which column a code sits in)</small></label>
+<input type="file" id="fC" accept=".xlsx,.numbers,.csv">
+<label for="fE">Coded exemplars <small>(select all at once; .xlsx, .numbers or .csv)</small></label>
+<input type="file" id="fE" accept=".xlsx,.numbers,.csv" multiple>
+</section>
+
+<section>
+<h2>2. Settings</h2>
+<label for="key">Anthropic API key <small>(kept in this tab only; never saved)</small></label>
+<input type="password" id="key" autocomplete="off" placeholder="sk-ant-...">
+<div class="row">
+<div><label for="model">Model <small>(pin one for replication)</small></label><input type="text" id="model" value="claude-sonnet-5-5"></div>
+<div><label for="seed">Seed <small>(orders the exemplars)</small></label><input type="number" id="seed" value="20260110"></div>
+<div><label for="chunk">Rows per request <small>(0 = whole transcript)</small></label><input type="number" id="chunk" value="0" min="0"></div>
+</div>
+<div class="row">
+<div><label for="runs">Consensus runs <small>(1 = single run)</small></label><input type="number" id="runs" value="1" min="1" max="15"></div>
+<div><label for="thr">Agreement threshold <small>(blank = majority)</small></label><input type="number" id="thr" min="1" max="15" placeholder="majority"></div>
+<div><label for="subset" style="margin-top:30px"><input type="checkbox" id="subset"> Vary exemplar subset per run</label></div>
+</div>
+<p class="note" id="cost"></p>
+<p class="note">Consensus mode codes the transcript several times, each run with a different seeded exemplar order (and, if ticked, one exemplar left out), then keeps a code only if enough runs applied it. Cost grows with the number of runs, because each run sends the full codebook and exemplars (about 70,000 tokens).</p>
+<p class="note">Temperature is fixed at 0. The API has no sampling seed, so the seed here sets the exemplar order, and every run saves a manifest with file hashes so others can verify they used the same inputs.</p>
+<details><summary class="note">System prompt (share with collaborators)</summary>
+<pre id="sp"></pre><button class="alt" id="copy">Copy system prompt</button>
+</details>
+</section>
+
+<section>
+<div class="bar"><button id="run">Code transcript</button><div id="status" role="status"></div></div>
+<p class="warn" id="warn" role="alert" hidden></p>
+<progress id="prog" value="0" max="1" hidden></progress>
+</section>
+
+<section id="out" hidden>
+<h2>Results</h2>
+<p class="note" id="sum"></p>
+<p class="warn" id="warn2" hidden></p>
+<div class="bar" style="margin-bottom:10px">
+<button id="dlC" class="alt">Download CSV</button><button id="dlX" class="alt">Download Excel</button><button id="dlR" class="alt" hidden>Download codes below threshold</button><button id="dlM" class="alt">Download run manifest</button>
+</div>
+<div class="scroll"><table><thead><tr><th>Row</th><th>Speaker</th><th>Time</th><th>Excerpt</th><th>Interpretation</th><th>Code</th><th>Check</th></tr></thead><tbody id="tb"></tbody></table></div>
+</section>
+</main>
+
+<script>
+const APP_VERSION = "1.10";
+const SYSTEM_PROMPT = `You are a qualitative coding assistant for a research team. Apply the supplied codebook exactly as written. Never invent, rename, merge, or reinterpret codes.
+
+You will receive a CODEBOOK, EXEMPLARS (fully coded interviews that show how this team wants coding done), and a TRANSCRIPT to code.
+
+The codebook lists one code per line. Each line shows the code's ancestors (as IDs, from the top-level code down) followed by the code's full label, for example "CP1 > CP2 > CP5 - Clinic Performance Goals". The code you return is the full label at the end of the line, copied exactly (here "CP5 - Clinic Performance Goals").
+
+Rules:
+1. Keep the context of the text intact. Read the whole utterance and the question it answers, then match that context to the top-level code (vertical) of the codebook whose subject it belongs to. Do not match on isolated keywords. Where the text is about the subject of a top-level code, that vertical takes priority over verticals that only touch it in passing.
+2. Within the vertical you chose, descend its hierarchy and apply the most specific code that fits. Exhaust that vertical before checking other verticals. Use a parent code only when no child code fits.
+3. Only then check other verticals, and add a code from another vertical only if a distinct part of the excerpt supports it.
+4. Use only codes that appear in the codebook, spelled exactly as in the codebook.
+5. For every code you apply, extract the excerpt that supports it: a full sentence or part of a sentence, copied verbatim from the transcript row. Never paraphrase.
+6. Add a brief interpretation (a few words naming what the excerpt is about), in the style of the exemplars' "Interpretation/ Open code" column.
+7. Follow the exemplars for granularity, for how many codes a row may receive, for whether interviewer turns are coded, and for what is left uncoded. When the codebook and an exemplar disagree on a code's label, follow the codebook.
+8. A row may receive several codes: return one element per code, each with its own excerpt. If no code applies to a row (greetings, consent, scheduling, backchannel such as "Mhm"), return nothing for that row; the app records it as uncoded.
+9. Code only the rows given, using the row_ref value for each row.
+10. Return ONLY a JSON array, with no commentary and no code fences. Each element is {"row_ref": <number>, "code": "<exact code label>", "excerpt": "<verbatim text>", "interpretation": "<few words>"}. If nothing applies anywhere, return [].`;
+
+const $ = id => document.getElementById(id);
+$("sp").textContent = SYSTEM_PROMPT;
+const showCost = () => { const n = Math.max(1, parseInt($("runs").value, 10) || 1); $("cost").textContent = n > 1 ? `This will make ${n} full coding runs, so expect about ${n} times the input and output tokens of a single run, plus any verification calls.` : ""; };
+$("runs").oninput = showCost;
+$("copy").onclick = () => navigator.clipboard.writeText(SYSTEM_PROMPT).then(() => status("System prompt copied.", "ok"));
+
+let results = [], manifest = null, review = [];
+const addUsage = (u, d) => { u.input += d.usage.input_tokens || 0; u.output += d.usage.output_tokens || 0; u.cache_read += d.usage.cache_read_input_tokens || 0; u.cache_write += d.usage.cache_creation_input_tokens || 0; };
+const TEMP_WARN = "Temperature 0 was rejected by this model, so the run used the model's default sampling and is not deterministic. Re-running can give different codes. This is recorded in the run manifest.";
+const OUT_HEAD = ["Timestamp", "Speaker", "Text", "Excerpt", "Interpretation/ Open code", "Code"];
+
+function status(t, c) { const s = $("status"); s.textContent = t; s.className = c || ""; }
+
+async function docParas(f, ext) {
+  const zip = await JSZip.loadAsync(await f.arrayBuffer());
+  const entry = zip.file(ext === "docx" ? "word/document.xml" : "content.xml");
+  if (!entry) throw new Error(`${f.name} does not look like a valid .${ext} file.`);
+  const doc = new DOMParser().parseFromString(await entry.async("string"), "application/xml");
+  const walk = n => {
+    let t = "";
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) { if (ext === "odt") t += c.data; continue; }
+      const k = c.nodeName;
+      if (k === "w:t") t += c.textContent;
+      else if (k === "w:br" || k === "w:cr" || k === "text:line-break") t += "\n";
+      else if (k === "w:tab" || k === "text:tab") t += "\t";
+      else if (k === "text:s") t += " ".repeat(+c.getAttribute("text:c") || 1);
+      else t += walk(c);
+    }
+    return t;
+  };
+  const tags = ext === "docx" ? ["w:p"] : ["text:p", "text:h"];
+  return [...doc.getElementsByTagName("*")].filter(e => tags.includes(e.nodeName)).map(walk);
+}
+function docRows(paras) {
+  // Drops the recording header (title, date, duration) before the first speaker line, and "started/stopped transcription" notices.
+  const rows = [["speaker", "time", "text"]], re = /^(.+?)(?:\t|[\s\u00a0]{2,})(\d{1,2}:\d{2}(?::\d{2})?)$/, note = /^.+\s(started|stopped)\stranscription\.?$/i;
+  for (const p of paras) {
+    const lines = p.split("\n").map(l => l.trim()).filter(l => l && !note.test(l));
+    if (!lines.length) continue;
+    const m = lines[0].match(re);
+    if (m) rows.push([m[1].trim(), m[2], lines.slice(1).join(" ")]);
+    else if (rows.length > 1) rows[rows.length - 1][2] += " " + lines.join(" ");
+  }
+  if (rows.length < 2) throw new Error("No speaker lines with timestamps found in the transcript.");
+  return rows;
+}
+function parseCsv(t) {
+  const rows = []; let row = [], c = "", q = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (q) { if (ch === '"') { if (t[i + 1] === '"') { c += '"'; i++; } else q = false; } else c += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ",") { row.push(c); c = ""; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && t[i + 1] === "\n") i++; row.push(c); c = ""; if (row.some(x => x !== "")) rows.push(row); row = []; }
+    else c += ch;
+  }
+  row.push(c); if (row.some(x => x !== "")) rows.push(row);
+  return rows;
+}
+async function readSheets(f) {
+  const ext = f.name.split(".").pop().toLowerCase();
+  if (ext === "pages") throw new Error("Pages files cannot be read in a browser. In Pages choose File > Export To > Word, then upload the .docx.");
+  if (ext === "docx" || ext === "odt") return [{ name: "Transcript", rows: docRows(await docParas(f, ext)) }];
+  if (ext === "csv") return [{ name: "Sheet1", rows: parseCsv(new TextDecoder().decode(await f.arrayBuffer()).replace(/^\uFEFF/, "")) }];
+  const wb = XLSX.read(await f.arrayBuffer(), { type: "array", raw: true });
+  return wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: "", blankrows: false, raw: false }) }));
+}
+const csvOf = rows => rows.map(r => r.map(c => { c = String(c); return /[",\n\r]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(",")).join("\n");
+const isCode = s => /^[A-Za-z]+\d+\s*-\s*\S/.test(s);
+
+// Codebook: the hierarchy is shown by which column a code sits in. Turn it into one line per code with its ancestors.
+function codebookInfo(sheets) {
+  const lines = [], codes = [];
+  for (const s of sheets) {
+    const stack = [];
+    s.rows.slice(1).forEach(r => {
+      const i = r.findIndex(c => String(c).trim() !== "");
+      if (i < 0) return;
+      const label = String(r[i]).replace(/\s+/g, " ").trim();
+      stack.length = i; stack[i] = label;
+      const anc = stack.slice(0, i).filter(Boolean).map(a => a.split(" - ")[0]);
+      lines.push([...anc, label].join(" > "));
+      codes.push(label);
+    });
+  }
+  return { text: lines.join("\n"), codes: new Set(codes) };
+}
+// Exemplars: keep headed columns only, and print a repeated utterance's text once.
+function exemplarText(sheets) {
+  return sheets.map(s => {
+    const h = s.rows[0] || [], keep = h.map((c, i) => String(c).trim() ? i : -1).filter(i => i >= 0);
+    const ti = h.findIndex(c => /^text$/i.test(String(c).trim())), key = r => [r[0], r[1], r[ti]].join("|");
+    const out = s.rows.map((r, n) => {
+      const row = keep.map(i => r[i] ?? "");
+      if (n > 0 && ti >= 0 && n > 1 && key(s.rows[n - 1]) === key(r)) row[keep.indexOf(ti)] = "(same utterance as above)";
+      return row;
+    });
+    return csvOf(out);
+  }).join("\n");
+}
+async function sha(t) {
+  try { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
+  catch (e) { return "unavailable"; }
+}
+function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function shuffle(arr, seed) { const r = rng(seed), a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// Title case for output: keeps the code ID and existing capitals (acronyms), lowercases small words.
+const SMALL = new Set(["a","an","and","as","at","but","by","for","in","of","on","or","the","to","vs","via"]);
+function titleCode(code) {
+  const k = code.indexOf(" - "); if (k < 0) return code;
+  let first = true, prev = "";
+  const rest = code.slice(k + 3).replace(/[^\s\/;:,()&-]+|[\s\/;:,()&-]+/g, w => {
+    if (!/[A-Za-z]/.test(w)) { prev = w; if (/[;:]/.test(w)) first = true; return w; }
+    const lead = first; first = false;
+    if (!lead && prev !== "-" && SMALL.has(w.toLowerCase())) return w.toLowerCase();
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  });
+  return code.slice(0, k + 3) + rest;
+}
+const norm = s => String(s).toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
+
+async function callApi(body, state, onTick) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const b = { ...body, stream: true }; if (state.temp) b.temperature = 0;
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": $("key").value.trim(), "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify(b)
+    });
+    if (r.ok) {
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "", text = "", usage = {}, stop = "";
+      for (;;) {
+        const { done, value } = await rd.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop();
+        for (const l of lines) {
+          if (!l.startsWith("data:")) continue;
+          let ev; try { ev = JSON.parse(l.slice(5)); } catch (e) { continue; }
+          if (ev.type === "content_block_delta" && ev.delta.text) { text += ev.delta.text; onTick(text.length); }
+          else if (ev.type === "message_start") Object.assign(usage, ev.message.usage);
+          else if (ev.type === "message_delta") { usage.output_tokens = ev.usage.output_tokens; stop = ev.delta.stop_reason; }
+          else if (ev.type === "error") throw new Error(ev.error.message);
+        }
+      }
+      return { text, usage, stop };
+    }
+    const e = await r.text();
+    if (r.status === 400 && /temperature/i.test(e) && state.temp) { state.temp = false; $("warn").textContent = TEMP_WARN; $("warn").hidden = false; continue; }
+    if ([429, 500, 529].includes(r.status) && attempt < 2) { await new Promise(s => setTimeout(s, 4000 * (attempt + 1))); continue; }
+    throw new Error(`API ${r.status}: ${e.slice(0, 300)}`);
+  }
+}
+function parseJson(t) {
+  t = t.replace(/```json|```/g, "");
+  const a = t.indexOf("["), z = t.lastIndexOf("]");
+  if (a < 0 || z < 0) throw new Error("No JSON array in reply");
+  return JSON.parse(t.slice(a, z + 1));
+}
+
+$("run").onclick = async () => {
+  const fT = $("fT").files[0], fC = $("fC").files[0], fE = [...$("fE").files];
+  if (!fT || !fC || fE.length === 0) return status("Add the transcript, the codebook and the coded exemplars first.", "err");
+  if (!$("key").value.trim()) return status("Enter your Anthropic API key.", "err");
+  $("run").disabled = true; $("out").hidden = true; $("warn").hidden = true; results = [];
+  try {
+    status("Reading files...");
+    const seed = parseInt($("seed").value, 10) || 0, model = $("model").value.trim();
+    let size = parseInt($("chunk").value, 10) || 0;
+    const tr = (await readSheets(fT))[0].rows, cb = codebookInfo(await readSheets(fC));
+    if (cb.codes.size === 0) throw new Error("No codes found in the codebook.");
+    const exs = [];
+    for (const f of fE) exs.push({ name: f.name, text: exemplarText(await readSheets(f)) });
+    exs.sort((a, b) => a.name.localeCompare(b.name));
+    const nRuns = Math.min(15, Math.max(1, parseInt($("runs").value, 10) || 1));
+    const thr = nRuns === 1 ? 1 : Math.min(nRuns, Math.max(1, parseInt($("thr").value, 10) || Math.floor(nRuns / 2) + 1));
+    const subset = $("subset").checked && nRuns > 1 && exs.length > 2;
+    // Each run gets its own seeded exemplar order (seed + run number; orders are not repeated while unused orders remain); with the subset option, one seeded exemplar is also left out.
+    const orders = [], seen = new Set();
+    for (let k = 0; k < nRuns; k++) {
+      let ord = shuffle(exs, seed + k);
+      for (let j = 1; j <= 60 && seen.has(ord.map(e => e.name).join("|")); j++) ord = shuffle(exs, seed + k + j * 1000);   // avoid repeating an exemplar order
+      seen.add(ord.map(e => e.name).join("|"));
+      if (subset) ord.splice(Math.floor(rng(seed + k + 7919)() * ord.length), 1);
+      orders.push(ord);
+    }
+    const exTextOf = ord => ord.map((e, i) => `--- EXEMPLAR ${i + 1} (${e.name}) ---\n${e.text}`).join("\n\n");
+    const refOf = ord => `CODEBOOK\n${cb.text}\n\nEXEMPLARS\n${exTextOf(ord)}`;
+    const ordered = orders[0], exText = exTextOf(ordered), ref = refOf(ordered);
+    const header = tr[0], data = tr.slice(1);
+    if (size < 1) size = data.length;
+    const col = (re, d) => { const i = header.findIndex(c => re.test(String(c).trim())); return i >= 0 ? i : d; };
+    const iT = col(/^time(stamp)?$/i, 1), iS = col(/^speaker$/i, 0), iX = col(/^text$/i, 2);
+    const uncoded = [...cb.codes].find(c => /-\s*X$/.test(c)) || "X";
+    const clean = c => String(c || "").replace(/\s+/g, " ").trim();
+    const state = { temp: true }, usage = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
+    const perRun = Math.ceil(data.length / size); let step = 0;
+    $("prog").hidden = false; $("prog").max = nRuns * perRun; $("prog").value = 0;
+    const codeOnce = async (runRef, tag) => {
+      const out = [];
+      for (let s = 0; s < data.length; s += size) {
+        const label = `${tag}Coding rows ${s + 1}-${Math.min(s + size, data.length)} of ${data.length}...`;
+        status(label);
+        const chunk = [["row_ref", ...header], ...data.slice(s, s + size).map((r, i) => [s + i + 1, ...r])];
+        const body = {
+          model, max_tokens: 32000,
+          system: [{ type: "text", text: SYSTEM_PROMPT }, { type: "text", text: runRef, cache_control: { type: "ephemeral" } }],
+          messages: [{ role: "user", content: `TRANSCRIPT (CSV; row_ref is the row number)\n${csvOf(chunk)}` }]
+        };
+        let items;
+        for (let t = 0; t < 2; t++) {
+          const d = await callApi(body, state, k => status(`${label} ${k} characters received`));
+          addUsage(usage, d);
+          if (d.stop === "max_tokens") throw new Error("The output hit the model's length limit. Set Rows per request to a smaller number.");
+          try { items = parseJson(d.text); break; } catch (e) { if (t) throw e; }
+        }
+        items.forEach(i => out.push({ row: Number(i.row_ref), code: clean(i.code), excerpt: String(i.excerpt || ""), interp: i.interpretation || "" }));
+        $("prog").value = ++step;
+      }
+      return out;
+    };
+    const runItems = [];
+    for (let k = 0; k < nRuns; k++) runItems.push(await codeOnce(refOf(orders[k]), nRuns > 1 ? `Run ${k + 1} of ${nRuns}: ` : ""));
+
+    // Consensus: a code is kept for a row only if at least `thr` runs applied it to that row (excerpt wording does not split the vote).
+    const rowText = n => String((data[n - 1] || [])[iX] ?? "");
+    let flat, minority = [], invalidDropped = 0;
+    const rowRuns = new Map();   // row -> runs that applied any valid code to it (consensus mode)
+    if (nRuns === 1) flat = runItems[0].map(it => ({ ...it, votes: 0 }));
+    else {
+      // Group each run's items by row and code. A repeated code in one row is kept as separate items when its excerpts differ,
+      // so excerpts from different runs are matched by word overlap (60% of the shorter excerpt).
+      const words = t => new Set(norm(t).replace(/[^a-z0-9' ]/g, " ").split(" ").filter(Boolean));
+      const jac = (a, b) => { const A = words(a), B = words(b); let n = 0; A.forEach(w => B.has(w) && n++); return n / ((A.size + B.size - n) || 1); };
+      const similar = (a, b) => { const A = words(a), B = words(b); if (!A.size || !B.size) return false; let n = 0; A.forEach(w => B.has(w) && n++); return n / Math.min(A.size, B.size) >= 0.6; };
+      const groups = new Map();   // row|code -> every run that applied the code to the row, with its excerpts clustered
+      runItems.forEach((items, k) => items.forEach(it => {
+        if (!(it.row >= 1 && it.row <= data.length)) return;
+        if (!cb.codes.has(it.code)) { invalidDropped++; return; }
+        if (!rowRuns.has(it.row)) rowRuns.set(it.row, new Set()); rowRuns.get(it.row).add(k);
+        const key = it.row + "|" + it.code;
+        if (!groups.has(key)) groups.set(key, { row: it.row, code: it.code, runs: new Set(), clusters: [] });
+        const G = groups.get(key); G.runs.add(k);
+        let c = G.clusters.find(c => !c.runs.has(k) && c.cands.some(x => similar(x.excerpt, it.excerpt)));
+        if (!c) { c = { runs: new Set(), cands: [] }; G.clusters.push(c); }
+        c.runs.add(k); c.cands.push({ ...it });
+      }));
+      flat = [];
+      const second = Math.max(2, Math.ceil(thr / 2));   // a second excerpt for the same code needs this many runs
+      for (const G of groups.values()) {
+        const cl = G.clusters.slice().sort((a, b) => b.runs.size - a.runs.size);
+        cl.forEach((e, j) => {
+          // excerpt: the verbatim candidate that best matches the other runs' excerpts (highest total word overlap); ties go to the earliest run
+          const ok = e.cands.filter(c => c.excerpt.trim() && norm(rowText(G.row)).includes(norm(c.excerpt))), pool = ok.length ? ok : e.cands;
+          const score = c => e.cands.reduce((t, d) => d === c ? t : t + jac(c.excerpt, d.excerpt), 0);
+          const best = pool.reduce((b, c) => score(c) > score(b) ? c : b, pool[0]);
+          const accepted = G.runs.size >= thr, keep = accepted && (j === 0 || e.runs.size >= second);
+          (keep ? flat : minority).push({ row: G.row, code: G.code, excerpt: best.excerpt, interp: best.interp, votes: accepted && !keep ? e.runs.size : G.runs.size });
+        });
+      }
+    }
+
+    const all = [];
+    flat.forEach(it => {
+      if (!(it.row >= 1 && it.row <= data.length)) return;
+      const r = data[it.row - 1];
+      all.push({ row: it.row, base: [r[iT] ?? "", r[iS] ?? "", r[iX] ?? ""], code: it.code, excerpt: it.excerpt, interp: it.interp, flags: [], note: nRuns > 1 ? [`votes ${it.votes}/${nRuns}`] : [] });
+    });
+    all.sort((a, b) => a.row - b.row);
+    const problems = it => {
+      const f = [];
+      if (!cb.codes.has(it.code)) f.push("code not in codebook");
+      if (!it.excerpt.trim() || !norm(it.base[2]).includes(norm(it.excerpt))) f.push("excerpt not verbatim");
+      return f;
+    };
+    const initialIssues = all.filter(it => problems(it).length).length;
+    let corrected = 0, rounds = 0;
+    for (let round = 1; round <= 2; round++) {
+      const bad = all.filter(it => problems(it).length);   // recheck: only items that still have an issue
+      if (!bad.length) break;
+      rounds++; status(`Verification round ${round}: correcting ${bad.length} item(s)...`);
+      const req = bad.map((it, k) => ({ id: k, row_ref: it.row, row_text: it.base[2], problem: problems(it).join("; "), code: it.code, excerpt: it.excerpt, interpretation: it.interp }));
+      const d = await callApi({
+        model, max_tokens: 16000,
+        system: [{ type: "text", text: SYSTEM_PROMPT }, { type: "text", text: ref, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: `VERIFICATION TASK. These coded items failed an automated check. For each item return a corrected version. The code must be copied exactly from the codebook. The excerpt must be copied verbatim from row_text (exact characters, a full sentence or part of a sentence) and must support the code. Re-apply the coding rules to row_text: if a different code fits better, use it. For this task, return ONLY a JSON array of {"id": <id>, "code": "<exact code label>", "excerpt": "<verbatim text>", "interpretation": "<few words>"}, one element per item, using the same ids, instead of the format in rule 10.\n\nITEMS\n${JSON.stringify(req)}` }]
+      }, state, k => status(`Verification round ${round}... ${k} characters received`));
+      addUsage(usage, d);
+      let fixes = []; try { fixes = parseJson(d.text); } catch (e) { continue; }
+      fixes.forEach(f => {
+        const it = bad[Number(f.id)]; if (!it) return;
+        const cand = { ...it, code: clean(f.code), excerpt: String(f.excerpt || ""), interp: f.interpretation || it.interp };
+        if (problems(cand).length) return;                  // still invalid: keep the original and flag it below
+        const parts = []; if (cand.code !== it.code) parts.push("code"); if (cand.excerpt !== it.excerpt) parts.push("excerpt");
+        it.code = cand.code; it.excerpt = cand.excerpt; it.interp = cand.interp; it.note.push(`corrected ${parts.join(" and ") || "item"} (round ${round})`); corrected++;
+      });
+    }
+    all.forEach(it => { it.flags = problems(it); });        // final recheck: flag what is still wrong
+    const unresolved = all.filter(it => it.flags.length).length;
+    const finalByRow = new Map(); all.forEach(it => { if (!finalByRow.has(it.row)) finalByRow.set(it.row, []); finalByRow.get(it.row).push(it); });
+    let coded = 0; const leftUncoded = new Set();
+    data.forEach((r, i) => {
+      const its = finalByRow.get(i + 1);
+      if (!its) {
+        const n = rowRuns.has(i + 1) ? rowRuns.get(i + 1).size : 0;
+        if (n) leftUncoded.add(i + 1);
+        results.push({ row: i + 1, base: [r[iT] ?? "", r[iS] ?? "", r[iX] ?? ""], excerpt: "X", interp: "", code: uncoded, flags: [], note: n ? [`coded in ${n} of ${nRuns} runs, no code reached ${thr} votes`] : [] });
+        return;
+      }
+      coded++; its.forEach(it => results.push(it));
+    });
+    review = minority.map(it => { const r = data[it.row - 1], left = leftUncoded.has(it.row); return [it.row, r[iT] ?? "", r[iS] ?? "", it.code, it.excerpt, it.interp, `${it.votes}/${nRuns}`, left ? "Row left uncoded" : ""]; })
+      .sort((a, b) => (b[7] ? 1 : 0) - (a[7] ? 1 : 0) || a[0] - b[0] || Number(b[6][0]) - Number(a[6][0]));
+    manifest = {
+      app_version: APP_VERSION, run_at: new Date().toISOString(), model, temperature: state.temp ? 0 : "not accepted by model",
+      temperature_warning: state.temp ? null : TEMP_WARN,
+      seed, exemplar_order: ordered.map(e => e.name),
+      consensus: nRuns > 1 ? { runs: nRuns, agreement_threshold: thr, vary_exemplar_subset: subset, exemplar_orders: orders.map(o => o.map(e => e.name)), codes_below_threshold: review.length, rows_coded_in_some_runs_but_left_uncoded: leftUncoded.size, invalid_codes_dropped_before_voting: invalidDropped } : null,
+      rows_per_request: size, transcript_rows: data.length,
+      hashes_sha256: { system_prompt: await sha(SYSTEM_PROMPT), codebook: await sha(cb.text), exemplars: await sha(exText), transcript: await sha(csvOf(tr)) },
+      token_usage: usage, rows_coded: coded, rows_uncoded: data.length - coded, codes_applied: all.length,
+      verification: { issues_found: initialIssues, corrected, unresolved, rounds }
+    };
+    $("tb").innerHTML = "";
+    results.forEach(r => {
+      const tr = document.createElement("tr"); if (r.excerpt === "X") tr.className = "x";
+      [r.row, r.base[1], r.base[0], r.excerpt, r.interp, titleCode(r.code), checkText(r)].forEach((v, j) => { const td = document.createElement("td"); td.textContent = v; if (j === 6 && v) td.className = r.flags.length ? "flag" : "fixed"; tr.append(td); });
+      $("tb").append(tr);
+    });
+    $("dlR").hidden = nRuns === 1;
+    $("sum").textContent = (nRuns > 1 ? `Consensus of ${nRuns} runs (a code needs ${thr} of ${nRuns} votes): ${review.length} code(s) below the threshold are in the review download, and ${leftUncoded.size} row(s) coded by some runs were left uncoded (listed first). ` : "") + `${coded} of ${data.length} rows coded, ${all.length} codes applied. Verification found ${initialIssues} issue(s): ${corrected} corrected, ${unresolved} still flagged. Only flagged or corrected items were rechecked; the rest were left as coded.`;
+    for (const id of ["warn", "warn2"]) { $(id).textContent = state.temp ? "" : TEMP_WARN; $(id).hidden = state.temp; }
+    $("out").hidden = false;
+    status("Done.", "ok");
+  } catch (e) { status(e.message, "err"); }
+  $("run").disabled = false; $("prog").hidden = true;
+};
+
+const save = (name, type, content) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); };
+const checkText = r => [...r.flags, ...r.note].join("; ");
+const hasCheck = () => results.some(r => checkText(r));
+const head = () => hasCheck() ? [...OUT_HEAD, "Check"] : OUT_HEAD;
+const outRows = () => results.map(r => [...r.base, r.excerpt, r.interp, titleCode(r.code), ...(hasCheck() ? [checkText(r)] : [])]);
+$("dlC").onclick = () => save("coded_transcript.csv", "text/csv", csvOf([head(), ...outRows()]));
+$("dlX").onclick = () => {
+  const ws = XLSX.utils.aoa_to_sheet([head(), ...outRows()]);
+  ws["!cols"] = [{ wch: 10 }, { wch: 18 }, { wch: 60 }, { wch: 50 }, { wch: 30 }, { wch: 40 }, { wch: 30 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Coded");
+  if (review.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([REV_HEAD, ...review.map(r => [r[0], r[1], r[2], titleCode(r[3]), r[4], r[5], r[6], r[7]])]), "Below threshold"); XLSX.writeFile(wb, "coded_transcript.xlsx");
+};
+const REV_HEAD = ["Row", "Timestamp", "Speaker", "Code", "Excerpt", "Interpretation/ Open code", "Votes", "Row outcome"];
+$("dlR").onclick = () => save("codes_below_threshold.csv", "text/csv", csvOf([REV_HEAD, ...review.map(r => [r[0], r[1], r[2], titleCode(r[3]), r[4], r[5], r[6], r[7]])]));
+$("dlM").onclick = () => save("run_manifest.json", "application/json", JSON.stringify(manifest, null, 2));
+</script>
+</body>
+</html>

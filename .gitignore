@@ -1,0 +1,5 @@
+# Interview data stays out of the repository
+outputs/
+review_lists/
+*.xlsx
+*.csv
