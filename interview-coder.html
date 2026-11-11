@@ -91,10 +91,10 @@ summary{cursor:pointer}
 <div class="row">
 <div><label for="runs">Consensus runs <small>(1 = single run)</small></label><input type="number" id="runs" value="1" min="1" max="15"></div>
 <div><label for="thr">Agreement threshold <small>(blank = majority)</small></label><input type="number" id="thr" min="1" max="15" placeholder="majority"></div>
-<div><label for="perrun">Exemplars per run <small>(blank = all)</small></label><input type="number" id="perrun" min="1" placeholder="all"></div>
+<div><label for="subset" style="margin-top:30px"><input type="checkbox" id="subset"> Vary exemplar subset per run</label></div>
 </div>
 <p class="note" id="cost"></p>
-<p class="note">Consensus mode codes the transcript several times, each run with a different seeded exemplar order (and, if "Exemplars per run" is set, a different seeded sample of the exemplars), then keeps a code only if enough runs applied it. Cost grows with the number of runs, because each run sends the full codebook and exemplars (about 70,000 tokens).</p>
+<p class="note">Consensus mode codes the transcript several times, each run with a different seeded exemplar order (and, if ticked, one exemplar left out), then keeps a code only if enough runs applied it. Cost grows with the number of runs, because each run sends the full codebook and exemplars (about 70,000 tokens).</p>
 <p class="note">Temperature is fixed at 0. The API has no sampling seed, so the seed here sets the exemplar order, and every run saves a manifest with file hashes so others can verify they used the same inputs.</p>
 <details><summary class="note">System prompt (share with collaborators)</summary>
 <pre id="sp"></pre><button class="alt" id="copy">Copy system prompt</button>
@@ -104,7 +104,6 @@ summary{cursor:pointer}
 <section>
 <div class="bar"><button id="run">Code transcript</button><div id="status" role="status"></div></div>
 <p class="warn" id="warn" role="alert" hidden></p>
-<p class="warn" id="exwarn" role="status" hidden></p>
 <progress id="prog" value="0" max="1" hidden></progress>
 </section>
 
@@ -113,14 +112,14 @@ summary{cursor:pointer}
 <p class="note" id="sum"></p>
 <p class="warn" id="warn2" hidden></p>
 <div class="bar" style="margin-bottom:10px">
-<button id="dlC" class="alt">Download CSV</button><button id="dlE" class="alt" title="Six columns, no Check column. Review it first, then add it to the exemplars.">Download as exemplar</button><button id="dlX" class="alt">Download Excel</button><button id="dlR" class="alt" hidden>Download codes below threshold</button><button id="dlM" class="alt">Download run manifest</button>
+<button id="dlC" class="alt">Download CSV</button><button id="dlX" class="alt">Download Excel</button><button id="dlR" class="alt" hidden>Download codes below threshold</button><button id="dlM" class="alt">Download run manifest</button>
 </div>
 <div class="scroll"><table><thead><tr><th>Row</th><th>Speaker</th><th>Time</th><th>Excerpt</th><th>Interpretation</th><th>Code</th><th>Check</th></tr></thead><tbody id="tb"></tbody></table></div>
 </section>
 </main>
 
 <script>
-const APP_VERSION = "1.11";
+const APP_VERSION = "1.10";
 const SYSTEM_PROMPT = `You are a qualitative coding assistant for a research team. Apply the supplied codebook exactly as written. Never invent, rename, merge, or reinterpret codes.
 
 You will receive a CODEBOOK, EXEMPLARS (fully coded interviews that show how this team wants coding done), and a TRANSCRIPT to code.
@@ -228,24 +227,17 @@ function codebookInfo(sheets) {
   return { text: lines.join("\n"), codes: new Set(codes) };
 }
 // Exemplars: keep headed columns only, and print a repeated utterance's text once.
-// Exemplars: keep the six standard columns, print a repeated utterance's text once, and collect the codes used.
-const EX_COLS = [/^timestamp$/i, /^speaker$/i, /^text$/i, /^excerpt$/i, /^interpretation/i, /^code$/i];
-function exemplarInfo(sheets, name) {
-  const codes = [];
-  const text = sheets.map(s => {
-    const h = (s.rows[0] || []).map(c => String(c).trim());
-    const keep = EX_COLS.map(re => h.findIndex(c => re.test(c)));
-    if (keep[3] < 0 || keep[5] < 0) throw new Error(`Exemplar ${name} needs "Excerpt" and "Code" columns (found: ${h.filter(Boolean).join(", ") || "no headers"}).`);
-    const cols = keep.filter(i => i >= 0), ti = keep[2];
+function exemplarText(sheets) {
+  return sheets.map(s => {
+    const h = s.rows[0] || [], keep = h.map((c, i) => String(c).trim() ? i : -1).filter(i => i >= 0);
+    const ti = h.findIndex(c => /^text$/i.test(String(c).trim())), key = r => [r[0], r[1], r[ti]].join("|");
     const out = s.rows.map((r, n) => {
-      const row = cols.map(i => r[i] ?? "");
-      if (n > 1 && ti >= 0 && [r[0], r[1], r[ti]].join("|") === [s.rows[n - 1][0], s.rows[n - 1][1], s.rows[n - 1][ti]].join("|")) row[cols.indexOf(ti)] = "(same utterance as above)";
-      if (n > 0 && r[keep[5]]) codes.push(String(r[keep[5]]).replace(/\s+/g, " ").trim());
+      const row = keep.map(i => r[i] ?? "");
+      if (n > 0 && ti >= 0 && n > 1 && key(s.rows[n - 1]) === key(r)) row[keep.indexOf(ti)] = "(same utterance as above)";
       return row;
     });
     return csvOf(out);
   }).join("\n");
-  return { text, codes };
 }
 async function sha(t) {
   try { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
@@ -310,7 +302,7 @@ $("run").onclick = async () => {
   const fT = $("fT").files[0], fC = $("fC").files[0], fE = [...$("fE").files];
   if (!fT || !fC || fE.length === 0) return status("Add the transcript, the codebook and the coded exemplars first.", "err");
   if (!$("key").value.trim()) return status("Enter your Anthropic API key.", "err");
-  $("run").disabled = true; $("out").hidden = true; $("warn").hidden = true; $("exwarn").hidden = true; results = [];
+  $("run").disabled = true; $("out").hidden = true; $("warn").hidden = true; results = [];
   try {
     status("Reading files...");
     const seed = parseInt($("seed").value, 10) || 0, model = $("model").value.trim();
@@ -318,28 +310,23 @@ $("run").onclick = async () => {
     const tr = (await readSheets(fT))[0].rows, cb = codebookInfo(await readSheets(fC));
     if (cb.codes.size === 0) throw new Error("No codes found in the codebook.");
     const exs = [];
-    for (const f of fE) { const ex = exemplarInfo(await readSheets(f), f.name); exs.push({ name: f.name, text: ex.text, codes: ex.codes }); }
-    // Exemplar check: codes used in an exemplar that are not in the codebook teach the model old or wrong labels.
-    const lower = new Set([...cb.codes].map(c => c.toLowerCase())), exMsgs = [];
-    exs.forEach(e => { const bad = e.codes.filter(c => !lower.has(c.toLowerCase())); if (bad.length) exMsgs.push(`${e.name}: ${bad.length} of ${e.codes.length} codes are not in the codebook (for example "${[...new Set(bad)].slice(0, 2).join('"; "')}")`); });
-    $("exwarn").textContent = exMsgs.length ? "Exemplar check: " + exMsgs.join(". ") + ". The model is told to follow the codebook, but fixing these exemplars gives better results." : ""; $("exwarn").hidden = !exMsgs.length;
+    for (const f of fE) exs.push({ name: f.name, text: exemplarText(await readSheets(f)) });
     exs.sort((a, b) => a.name.localeCompare(b.name));
     const nRuns = Math.min(15, Math.max(1, parseInt($("runs").value, 10) || 1));
     const thr = nRuns === 1 ? 1 : Math.min(nRuns, Math.max(1, parseInt($("thr").value, 10) || Math.floor(nRuns / 2) + 1));
-    const per = parseInt($("perrun").value, 10) || 0, take = per > 0 && per < exs.length ? per : exs.length;   // exemplars used in each run
-    // Each run gets its own seeded exemplar order (seed + run number; orders are not repeated while unused orders remain); with "Exemplars per run", each run uses a seeded sample of that many exemplars.
+    const subset = $("subset").checked && nRuns > 1 && exs.length > 2;
+    // Each run gets its own seeded exemplar order (seed + run number; orders are not repeated while unused orders remain); with the subset option, one seeded exemplar is also left out.
     const orders = [], seen = new Set();
     for (let k = 0; k < nRuns; k++) {
-      let ord = shuffle(exs, seed + k).slice(0, take);
-      for (let j = 1; j <= 60 && seen.has(ord.map(e => e.name).join("|")); j++) ord = shuffle(exs, seed + k + j * 1000).slice(0, take);   // avoid repeating an exemplar order
+      let ord = shuffle(exs, seed + k);
+      for (let j = 1; j <= 60 && seen.has(ord.map(e => e.name).join("|")); j++) ord = shuffle(exs, seed + k + j * 1000);   // avoid repeating an exemplar order
       seen.add(ord.map(e => e.name).join("|"));
+      if (subset) ord.splice(Math.floor(rng(seed + k + 7919)() * ord.length), 1);
       orders.push(ord);
     }
     const exTextOf = ord => ord.map((e, i) => `--- EXEMPLAR ${i + 1} (${e.name}) ---\n${e.text}`).join("\n\n");
     const refOf = ord => `CODEBOOK\n${cb.text}\n\nEXEMPLARS\n${exTextOf(ord)}`;
     const ordered = orders[0], exText = exTextOf(ordered), ref = refOf(ordered);
-    const estTok = Math.round((ref.length + SYSTEM_PROMPT.length) / 2.6 / 1000) * 1000;   // rough estimate, calibrated on real runs (about 2.6 characters per token for this CSV-style text)
-    $("cost").textContent = `Prompt size: about ${estTok.toLocaleString()} tokens per run (estimate).` + (estTok > 150000 ? " This is large and may exceed the model's context limit. Set Exemplars per run to a smaller number if the run fails." : "");
     const header = tr[0], data = tr.slice(1);
     if (size < 1) size = data.length;
     const col = (re, d) => { const i = header.findIndex(c => re.test(String(c).trim())); return i >= 0 ? i : d; };
@@ -468,10 +455,10 @@ $("run").onclick = async () => {
       app_version: APP_VERSION, run_at: new Date().toISOString(), model, temperature: state.temp ? 0 : "not accepted by model",
       temperature_warning: state.temp ? null : TEMP_WARN,
       seed, exemplar_order: ordered.map(e => e.name),
-      consensus: nRuns > 1 ? { runs: nRuns, agreement_threshold: thr, exemplars_per_run: take, exemplars_available: exs.length, exemplar_orders: orders.map(o => o.map(e => e.name)), codes_below_threshold: review.length, rows_coded_in_some_runs_but_left_uncoded: leftUncoded.size, invalid_codes_dropped_before_voting: invalidDropped } : null,
+      consensus: nRuns > 1 ? { runs: nRuns, agreement_threshold: thr, vary_exemplar_subset: subset, exemplar_orders: orders.map(o => o.map(e => e.name)), codes_below_threshold: review.length, rows_coded_in_some_runs_but_left_uncoded: leftUncoded.size, invalid_codes_dropped_before_voting: invalidDropped } : null,
       rows_per_request: size, transcript_rows: data.length,
       hashes_sha256: { system_prompt: await sha(SYSTEM_PROMPT), codebook: await sha(cb.text), exemplars: await sha(exText), transcript: await sha(csvOf(tr)) },
-      prompt_tokens_estimate_per_run: estTok, token_usage: usage, rows_coded: coded, rows_uncoded: data.length - coded, codes_applied: all.length,
+      token_usage: usage, rows_coded: coded, rows_uncoded: data.length - coded, codes_applied: all.length,
       verification: { issues_found: initialIssues, corrected, unresolved, rounds }
     };
     $("tb").innerHTML = "";
@@ -490,13 +477,11 @@ $("run").onclick = async () => {
 };
 
 const save = (name, type, content) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); };
-const exemplarRows = () => results.map(r => [...r.base, r.excerpt, r.interp, titleCode(r.code)]);
 const checkText = r => [...r.flags, ...r.note].join("; ");
 const hasCheck = () => results.some(r => checkText(r));
 const head = () => hasCheck() ? [...OUT_HEAD, "Check"] : OUT_HEAD;
 const outRows = () => results.map(r => [...r.base, r.excerpt, r.interp, titleCode(r.code), ...(hasCheck() ? [checkText(r)] : [])]);
 $("dlC").onclick = () => save("coded_transcript.csv", "text/csv", csvOf([head(), ...outRows()]));
-$("dlE").onclick = () => save("exemplar_candidate.csv", "text/csv", csvOf([OUT_HEAD, ...exemplarRows()]));
 $("dlX").onclick = () => {
   const ws = XLSX.utils.aoa_to_sheet([head(), ...outRows()]);
   ws["!cols"] = [{ wch: 10 }, { wch: 18 }, { wch: 60 }, { wch: 50 }, { wch: 30 }, { wch: 40 }, { wch: 30 }];
