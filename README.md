@@ -12,10 +12,8 @@ See `docs/01_Collaborator_Guide.docx` for file formats and tips, and `docs/00_It
 
 ## Contents
 - `interview-coder.html`: current app (v1.10).
-- `app_versions/`: preserved versions v1.6, v1.9 and v1.10. Earlier versions were not kept.
-- `system_prompt_v1.9.txt`: the shared system prompt (unchanged since v1.9).
-- `manifests/`: run manifests R2 to R7 (settings, exemplar names, hashes, token usage; no key, no interview text).
-- `docs/`: iteration report and collaborator guide.
+- `system_prompt_v1.9.txt`: the shared system prompt.
+- `docs/`: collaborator guide.
 
 ## Not included
 Coded transcripts and below-threshold review lists contain interview text and are not stored here. Keep transcripts anonymized.
