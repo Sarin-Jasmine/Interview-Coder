@@ -3,7 +3,7 @@
 A single-file browser app that codes interview transcripts with the Claude API, using a codebook (with code hierarchy) and your own coded exemplars. Files go only to the Anthropic API with your own key, which stays in the browser tab.
 
 ## Use
-1. Open `interview-coder.html` (current version, v1.10) in Chrome, Edge or Firefox.
+1. Open `interview-coder.html` (current version, v1.11) in Chrome, Edge or Firefox.
 2. Add a transcript (.docx, .odt, .xlsx, .numbers, .csv), the codebook, and one or more coded exemplars.
 3. Paste your Anthropic API key, then click **Code transcript**.
 4. Optional: set **Consensus runs** (for example 5) for a more repeatable result.
@@ -11,8 +11,8 @@ A single-file browser app that codes interview transcripts with the Claude API, 
 See `docs/01_Collaborator_Guide.docx` for file formats and tips, and `docs/00_Iteration_Report.docx` for the version history.
 
 ## Contents
-- `interview-coder.html`: current app (v1.10).
-- `system_prompt_v1.9.txt`: the shared system prompt.
+- `interview-coder.html`: current app (v1.11).
+- `system_prompt.txt`: the shared system prompt.
 - `docs/`: collaborator guide.
 
 ## Not included
