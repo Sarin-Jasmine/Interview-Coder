@@ -20,3 +20,5 @@ Coded transcripts and below-threshold review lists contain interview text and ar
 
 ## Notes
 The model does not accept temperature 0, so runs on identical inputs can differ. Use consensus runs and compare consensus with consensus.
+
+Vibe Coded Using Claude Sonnet5.5
